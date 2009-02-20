@@ -30,8 +30,8 @@
   */
             
 
-#include "program.h"
-#include "macros.h"
+#include "main/macros.h"
+#include "shader/program.h"
 #include "shader/prog_parameter.h"
 #include "shader/prog_print.h"
 #include "brw_context.h"
@@ -211,7 +211,7 @@ static void unalias2( struct brw_vs_compile *c,
 				    struct brw_reg,
 				    struct brw_reg ))
 {
-   if ((dst.file == arg0.file && dst.nr == arg0.nr) &&
+   if ((dst.file == arg0.file && dst.nr == arg0.nr) ||
        (dst.file == arg1.file && dst.nr == arg1.nr)) {
       struct brw_compile *p = &c->func;
       struct brw_reg tmp = brw_writemask(get_tmp(c), dst.dw1.bits.writemask);
@@ -1159,10 +1159,32 @@ void brw_vs_emit(struct brw_vs_compile *c )
 	 break;
       }
 
-      if (inst->DstReg.File == PROGRAM_OUTPUT
-	      &&inst->DstReg.Index != VERT_RESULT_HPOS
-	      &&c->output_regs[inst->DstReg.Index].used_in_src)
-	  brw_MOV(p, get_dst(c, inst->DstReg), dst);
+      if ((inst->DstReg.File == PROGRAM_OUTPUT)
+          && (inst->DstReg.Index != VERT_RESULT_HPOS)
+          && c->output_regs[inst->DstReg.Index].used_in_src) {
+         brw_MOV(p, get_dst(c, inst->DstReg), dst);
+      }
+
+      /* Result color clamping.
+       *
+       * When destination register is an output register and
+       * it's primary/secondary front/back color, we have to clamp
+       * the result to [0,1]. This is done by enabling the
+       * saturation bit for the last instruction.
+       *
+       * We don't use brw_set_saturate() as it modifies
+       * p->current->header.saturate, which affects all the subsequent
+       * instructions. Instead, we directly modify the header
+       * of the last (already stored) instruction.
+       */
+      if (inst->DstReg.File == PROGRAM_OUTPUT) {
+         if ((inst->DstReg.Index == VERT_RESULT_COL0)
+             || (inst->DstReg.Index == VERT_RESULT_COL1)
+             || (inst->DstReg.Index == VERT_RESULT_BFC0)
+             || (inst->DstReg.Index == VERT_RESULT_BFC1)) {
+            p->store[p->nr_insn-1].header.saturate = 1;
+         }
+      }
 
       release_tmps(c);
    }

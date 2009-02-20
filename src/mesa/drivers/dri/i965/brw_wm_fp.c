@@ -464,7 +464,7 @@ static struct prog_src_register search_or_add_const4f( struct brw_wm_compile *c,
    }
    
    idx = _mesa_add_unnamed_constant( paramList, values, 4, &swizzle );
-   /* XXX what about swizzle? */
+   assert(swizzle == SWIZZLE_NOOP); /* Need to handle swizzle in reg setup */
    return src_reg(PROGRAM_STATE_VAR, idx);
 }
 
@@ -562,6 +562,7 @@ static void precalc_tex( struct brw_wm_compile *c,
 {
    struct prog_src_register coord;
    struct prog_dst_register tmpcoord;
+   GLuint unit = c->fp->program.Base.SamplerUnits[inst->TexSrcUnit];
 
    if (inst->TexSrcTarget == TEXTURE_CUBE_INDEX) {
        struct prog_instruction *out;
@@ -618,7 +619,7 @@ static void precalc_tex( struct brw_wm_compile *c,
 	 search_or_add_param5( c, 
 			       STATE_INTERNAL, 
 			       STATE_TEXRECT_SCALE,
-			       inst->TexSrcUnit,
+			       unit,
 			       0,0 );
 
       tmpcoord = get_temp(c);
@@ -644,19 +645,19 @@ static void precalc_tex( struct brw_wm_compile *c,
     * conversion requires allocating a temporary variable which we
     * don't have the facility to do that late in the compilation.
     */
-   if (!(c->key.yuvtex_mask & (1<<inst->TexSrcUnit))) {
+   if (!(c->key.yuvtex_mask & (1<<unit))) {
       emit_op(c, 
 	      OPCODE_TEX,
 	      inst->DstReg,
 	      inst->SaturateMode,
-	      inst->TexSrcUnit,
+	      unit,
 	      inst->TexSrcTarget,
 	      coord,
 	      src_undef(),
 	      src_undef());
    }
    else {
-       GLboolean  swap_uv = c->key.yuvtex_swap_mask & (1<<inst->TexSrcUnit);
+       GLboolean  swap_uv = c->key.yuvtex_swap_mask & (1<<unit);
 
       /* 
 	 CONST C0 = { -.5, -.0625,  -.5, 1.164 }
@@ -682,7 +683,7 @@ static void precalc_tex( struct brw_wm_compile *c,
 	      OPCODE_TEX,
 	      tmp,
 	      inst->SaturateMode,
-	      inst->TexSrcUnit,
+	      unit,
 	      inst->TexSrcTarget,
 	      coord,
 	      src_undef(),
@@ -869,14 +870,34 @@ static void emit_fb_write( struct brw_wm_compile *c )
    struct prog_src_register outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_COLR);
    struct prog_src_register payload_r0_depth = src_reg(PROGRAM_PAYLOAD, PAYLOAD_DEPTH);
    struct prog_src_register outdepth = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_DEPR);
+   GLuint i;
 
-   emit_op(c,
-	   WM_FB_WRITE,
-	   dst_mask(dst_undef(),0),
-	   0, 0, 0,
-	   outcolor,
-	   payload_r0_depth,
-	   outdepth);
+   struct prog_instruction *inst, *last_inst;
+   struct brw_context *brw = c->func.brw;
+
+   /* inst->Sampler is not used by backend, 
+      use it for fb write target and eot */
+
+   if (brw->state.nr_draw_regions > 1) {
+       for (i = 0 ; i < brw->state.nr_draw_regions; i++) {
+	   outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_DATA0 + i);
+	   last_inst = inst = emit_op(c,
+		   WM_FB_WRITE, dst_mask(dst_undef(),0), 0, 0, 0,
+		   outcolor, payload_r0_depth, outdepth);
+	   inst->Sampler = (i<<1);
+	   if (c->fp_fragcolor_emitted) {
+	       outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_COLR);
+	       last_inst = inst = emit_op(c, WM_FB_WRITE, dst_mask(dst_undef(),0),
+		       0, 0, 0, outcolor, payload_r0_depth, outdepth);
+	       inst->Sampler = (i<<1);
+	   }
+       }
+       last_inst->Sampler |= 1; //eot
+   }else {
+       inst = emit_op(c, WM_FB_WRITE, dst_mask(dst_undef(),0),
+	       0, 0, 0, outcolor, payload_r0_depth, outdepth);
+       inst->Sampler = 1|(0<<1);
+   }
 }
 
 
@@ -902,7 +923,15 @@ static void validate_src_regs( struct brw_wm_compile *c,
    }
 }
 	 
-
+static void validate_dst_regs( struct brw_wm_compile *c,
+			       const struct prog_instruction *inst )
+{
+   if (inst->DstReg.File == PROGRAM_OUTPUT) {
+       GLuint idx = inst->DstReg.Index;
+       if (idx == FRAG_RESULT_COLR)
+	   c->fp_fragcolor_emitted = 1;
+   }
+}
 
 static void print_insns( const struct prog_instruction *insn,
 			 GLuint nr )
@@ -947,12 +976,16 @@ void brw_wm_pass_fp( struct brw_wm_compile *c )
 
    for (insn = 0; insn < fp->program.Base.NumInstructions; insn++) {
       const struct prog_instruction *inst = &fp->program.Base.Instructions[insn];
+      validate_src_regs(c, inst);
+      validate_dst_regs(c, inst);
+   }
+   for (insn = 0; insn < fp->program.Base.NumInstructions; insn++) {
+      const struct prog_instruction *inst = &fp->program.Base.Instructions[insn];
       struct prog_instruction *out;
 
       /* Check for INPUT values, emit INTERP instructions where
        * necessary:
        */
-      validate_src_regs(c, inst);
 
 
       switch (inst->Opcode) {
@@ -995,6 +1028,11 @@ void brw_wm_pass_fp( struct brw_wm_compile *c )
 
       case OPCODE_TXP:
 	 precalc_txp(c, inst);
+	 break;
+
+      case OPCODE_TXB:
+	 out = emit_insn(c, inst);
+	 out->TexSrcUnit = fp->program.Base.SamplerUnits[inst->TexSrcUnit];
 	 break;
 
       case OPCODE_XPD: 
