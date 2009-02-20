@@ -36,7 +36,7 @@ static void intel_batchbuffer_reset( struct intel_batchbuffer *batch )
    assert(batch->map == NULL);
 
    batch->offset = (unsigned long)batch->ptr;
-   batch->offset = (batch->offset + 63) & ~63;
+   batch->offset = ALIGN(batch->offset, 64);
    batch->ptr = (unsigned char *) batch->offset;
 
    if (BATCH_SZ - batch->offset < BATCH_REFILL) {
@@ -121,7 +121,7 @@ void intel_batchbuffer_free( struct intel_batchbuffer *batch )
 
 
 #define MI_BATCH_BUFFER_END 	(0xA<<23)
-
+#define MI_FLUSH                (0x200 << 16 | 0x4)
 
 GLboolean intel_batchbuffer_flush( struct intel_batchbuffer *batch )
 {
@@ -141,14 +141,15 @@ GLboolean intel_batchbuffer_flush( struct intel_batchbuffer *batch )
     * performance drain that we would like to avoid.
     */
    if (used & 4) {
-      ((int *)batch->ptr)[0] = MI_BATCH_BUFFER_END;
-      batch->ptr += 4;
-      used += 4;
+      ((int *)batch->ptr)[0] = MI_FLUSH;
+      ((int *)batch->ptr)[1] = 0;
+      ((int *)batch->ptr)[2] = MI_BATCH_BUFFER_END;
+      batch->ptr += 12;
+      used += 12;
    }
    else {
-      ((int *)batch->ptr)[0] = 0;
+      ((int *)batch->ptr)[0] = MI_FLUSH;
       ((int *)batch->ptr)[1] = MI_BATCH_BUFFER_END;
-
       batch->ptr += 8;
       used += 8;
    }
@@ -216,7 +217,7 @@ void intel_batchbuffer_align( struct intel_batchbuffer *batch,
 			      GLuint sz )
 {
    unsigned long ptr = (unsigned long) batch->ptr;
-   unsigned long aptr = (ptr + align) & ~((unsigned long)align-1);
+   unsigned long aptr = ALIGN(ptr, align);
    GLuint fixup = aptr - ptr;
 
    if (intel_batchbuffer_space(batch) < fixup + sz)
