@@ -63,16 +63,15 @@
 #endif
 
 #include "glxheader.h"
-#include "GL/xmesa.h"
 #include "xmesaP.h"
 #include "main/context.h"
 #include "main/extensions.h"
 #include "main/framebuffer.h"
-#include "glapi/glthread.h"
 #include "main/imports.h"
 #include "main/macros.h"
 #include "main/renderbuffer.h"
 #include "main/teximage.h"
+#include "glapi/glthread.h"
 #include "swrast/swrast.h"
 #include "swrast_setup/swrast_setup.h"
 #include "vbo/vbo.h"

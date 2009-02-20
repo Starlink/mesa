@@ -31,11 +31,11 @@
  * The back-buffer is allocated by the driver and is private.
  */
 
-#include "context.h"
-#include "extensions.h"
-#include "framebuffer.h"
-#include "imports.h"
-#include "renderbuffer.h"
+#include "main/context.h"
+#include "main/extensions.h"
+#include "main/framebuffer.h"
+#include "main/imports.h"
+#include "main/renderbuffer.h"
 #include "swrast/swrast.h"
 #include "swrast_setup/swrast_setup.h"
 #include "tnl/tnl.h"
@@ -66,6 +66,7 @@
 #define need_GL_ARB_vertex_program
 #define need_GL_APPLE_vertex_array_object
 #define need_GL_ATI_fragment_shader
+#define need_GL_ATI_separate_stencil
 #define need_GL_EXT_depth_bounds_test
 #define need_GL_EXT_framebuffer_object
 #define need_GL_EXT_framebuffer_blit
@@ -96,6 +97,7 @@ const struct dri_extension card_extensions[] =
     { "GL_ARB_vertex_program",		GL_ARB_vertex_program_functions },
     { "GL_APPLE_vertex_array_object",	GL_APPLE_vertex_array_object_functions },
     { "GL_ATI_fragment_shader",		GL_ATI_fragment_shader_functions },
+    { "GL_ATI_separate_stencil",	GL_ATI_separate_stencil_functions },
     { "GL_EXT_depth_bounds_test",	GL_EXT_depth_bounds_test_functions },
     { "GL_EXT_framebuffer_object",	GL_EXT_framebuffer_object_functions },
     { "GL_EXT_framebuffer_blit",	GL_EXT_framebuffer_blit_functions },
@@ -143,8 +145,8 @@ swrastFillInModes(__DRIscreen *psp,
 	GLX_NONE, GLX_SWAP_UNDEFINED_OML
     };
 
-    u_int8_t depth_bits_array[4];
-    u_int8_t stencil_bits_array[4];
+    uint8_t depth_bits_array[4];
+    uint8_t stencil_bits_array[4];
 
     depth_bits_array[0] = 0;
     depth_bits_array[1] = 0;

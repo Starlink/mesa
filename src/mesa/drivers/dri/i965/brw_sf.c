@@ -30,9 +30,9 @@
   */
   
 
-#include "glheader.h"
-#include "macros.h"
-#include "enums.h"
+#include "main/glheader.h"
+#include "main/macros.h"
+#include "main/enums.h"
 
 #include "intel_batchbuffer.h"
 
@@ -73,10 +73,12 @@ static void compile_sf_prog( struct brw_context *brw,
 	 c.attr_to_idx[i] = idx;
 	 c.idx_to_attr[idx] = i;
 	 if (i >= VERT_RESULT_TEX0 && i <= VERT_RESULT_TEX7) {
-		 c.point_attrs[i].CoordReplace = 
-			brw->attribs.Point->CoordReplace[i - VERT_RESULT_TEX0];
-	 } else
-		 c.point_attrs[i].CoordReplace = GL_FALSE;
+            c.point_attrs[i].CoordReplace = 
+               brw->attribs.Point->CoordReplace[i - VERT_RESULT_TEX0];
+	 }
+         else {
+            c.point_attrs[i].CoordReplace = GL_FALSE;
+         }
 	 idx++;
       }
    
@@ -106,7 +108,6 @@ static void compile_sf_prog( struct brw_context *brw,
       assert(0);
       return;
    }
-	 
 
    /* get the program
     */
@@ -125,7 +126,7 @@ static void compile_sf_prog( struct brw_context *brw,
 
 /* Calculate interpolants for triangle and line rasterization.
  */
-static int upload_sf_prog( struct brw_context *brw )
+static void upload_sf_prog(struct brw_context *brw)
 {
    struct brw_sf_prog_key key;
 
@@ -174,7 +175,6 @@ static int upload_sf_prog( struct brw_context *brw )
 				      &brw->sf.prog_data);
    if (brw->sf.prog_bo == NULL)
       compile_sf_prog( brw, &key );
-   return dri_bufmgr_check_aperture_space(brw->sf.prog_bo);
 }
 
 

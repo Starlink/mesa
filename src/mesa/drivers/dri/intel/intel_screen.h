@@ -30,6 +30,7 @@
 
 #include <sys/time.h>
 #include "dri_util.h"
+#include "intel_bufmgr.h"
 #include "i915_drm.h"
 #include "xmlconfig.h"
 
@@ -55,7 +56,6 @@ typedef struct
 {
    intelRegion front;
    intelRegion back;
-   intelRegion third;
    intelRegion depth;
    intelRegion tex;
 
@@ -67,12 +67,18 @@ typedef struct
    int logTextureGranularity;
 
    __DRIscreenPrivate *driScrnPriv;
-   unsigned int sarea_priv_offset;
+
+   volatile drm_i915_sarea_t *sarea;
 
    int drmMinor;
 
    int irq_active;
-   int allow_batchbuffer;
+
+   GLboolean no_hw;
+
+   GLboolean no_vbo;
+   int ttm;
+   dri_bufmgr *bufmgr;
 
    /**
    * Configuration cache with default values for all contexts
@@ -88,7 +94,7 @@ extern void intelUnmapScreenRegions(intelScreenPrivate * intelScreen);
 
 extern void
 intelUpdateScreenFromSAREA(intelScreenPrivate * intelScreen,
-                           struct drm_i915_sarea * sarea);
+                           drm_i915_sarea_t * sarea);
 
 extern void intelDestroyContext(__DRIcontextPrivate * driContextPriv);
 

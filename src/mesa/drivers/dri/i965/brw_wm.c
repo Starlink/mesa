@@ -36,63 +36,24 @@
 #include "brw_state.h"
 
 
+/** Return number of src args for given instruction */
 GLuint brw_wm_nr_args( GLuint opcode )
 {
    switch (opcode) {
-
    case WM_PIXELXY:
-   case OPCODE_ABS:
-   case OPCODE_FLR:
-   case OPCODE_FRC:
-   case OPCODE_SWZ:
-   case OPCODE_MOV:
-   case OPCODE_COS:
-   case OPCODE_EX2:
-   case OPCODE_LG2:
-   case OPCODE_RCP:
-   case OPCODE_RSQ:
-   case OPCODE_SIN:
-   case OPCODE_SCS:
-   case OPCODE_TEX:
-   case OPCODE_TXB:
-   case OPCODE_TXP:	
-   case OPCODE_KIL:
-   case OPCODE_LIT: 
-   case WM_CINTERP: 
-   case WM_WPOSXY: 
+   case WM_CINTERP:
+   case WM_WPOSXY:
       return 1;
-
-   case OPCODE_POW:
-   case OPCODE_SUB:
-   case OPCODE_SGE:
-   case OPCODE_SGT:
-   case OPCODE_SLE:
-   case OPCODE_SLT:
-   case OPCODE_SEQ:
-   case OPCODE_SNE:
-   case OPCODE_ADD:
-   case OPCODE_MAX:
-   case OPCODE_MIN:
-   case OPCODE_MUL:
-   case OPCODE_XPD:
-   case OPCODE_DP3:	
-   case OPCODE_DP4:
-   case OPCODE_DPH:
-   case OPCODE_DST:
-   case WM_LINTERP: 
+   case WM_LINTERP:
    case WM_DELTAXY:
    case WM_PIXELW:
       return 2;
-
    case WM_FB_WRITE:
-   case WM_PINTERP: 
-   case OPCODE_MAD:	
-   case OPCODE_CMP:
-   case OPCODE_LRP:
+   case WM_PINTERP:
       return 3;
-      
    default:
-      return 0;
+      assert(opcode < MAX_OPCODE);
+      return _mesa_num_inst_src_regs(opcode);
    }
 }
 
@@ -175,6 +136,9 @@ static void do_wm_prog( struct brw_context *brw,
 	*/
        brw_wm_emit(c);
    }
+   if (INTEL_DEBUG & DEBUG_WM)
+      fprintf(stderr, "\n");
+
    /* get the program
     */
    program = brw_get_program(&c->func, &program_size);
@@ -230,12 +194,6 @@ static void brw_wm_populate_key( struct brw_context *brw,
 	 lookup |= IZ_STENCIL_WRITE_ENABLE_BIT;
    }
 
-   /* XXX: when should this be disabled?
-    */
-   if (1)
-      lookup |= IZ_EARLY_DEPTH_TEST_BIT;
-
-   
    line_aa = AA_NEVER;
 
    /* _NEW_LINE, _NEW_POLYGON, BRW_NEW_REDUCED_PRIMITIVE */
@@ -322,7 +280,7 @@ static void brw_wm_populate_key( struct brw_context *brw,
 }
 
 
-static int brw_prepare_wm_prog( struct brw_context *brw )
+static void brw_prepare_wm_prog(struct brw_context *brw)
 {
    struct brw_wm_prog_key key;
    struct brw_fragment_program *fp = (struct brw_fragment_program *)
@@ -339,8 +297,6 @@ static int brw_prepare_wm_prog( struct brw_context *brw )
 				      &brw->wm.prog_data);
    if (brw->wm.prog_bo == NULL)
       do_wm_prog(brw, fp, &key);
-
-   return dri_bufmgr_check_aperture_space(brw->wm.prog_bo);
 }
 
 

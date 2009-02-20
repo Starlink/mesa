@@ -30,11 +30,18 @@
   */
 
 
+#include "main/imports.h"
+#include "main/api_noop.h"
+#include "main/macros.h"
+#include "main/vtxfmt.h"
+#include "main/simple_list.h"
+#include "shader/shader_api.h"
+
 #include "brw_context.h"
 #include "brw_defines.h"
 #include "brw_draw.h"
+#include "brw_state.h"
 #include "brw_vs.h"
-#include "imports.h"
 #include "intel_tex.h"
 #include "intel_blit.h"
 #include "intel_batchbuffer.h"
@@ -43,10 +50,7 @@
 #include "tnl/t_pipeline.h"
 
 #include "utils.h"
-#include "api_noop.h"
-#include "vtxfmt.h"
 
-#include "shader/shader_api.h"
 
 /***************************************
  * Mesa's Driver Functions
@@ -67,6 +71,9 @@ static void brwInitDriverFunctions( struct dd_function_table *functions )
 
    brwInitFragProgFuncs( functions );
    brwInitProgFuncs( functions );
+   brw_init_queryobj_functions(functions);
+
+   functions->Viewport = intel_viewport;
 }
 
 
@@ -122,9 +129,10 @@ GLboolean brwCreateContext( const __GLcontextModes *mesaVis,
 
    TNL_CONTEXT(ctx)->Driver.RunPipeline = _tnl_run_pipeline;
 
-   ctx->Const.MaxTextureUnits = BRW_MAX_TEX_UNIT;
    ctx->Const.MaxTextureImageUnits = BRW_MAX_TEX_UNIT;
-   ctx->Const.MaxTextureCoordUnits = BRW_MAX_TEX_UNIT;
+   ctx->Const.MaxTextureCoordUnits = 8; /* Mesa limit */
+   ctx->Const.MaxTextureUnits = MIN2(ctx->Const.MaxTextureCoordUnits,
+                                     ctx->Const.MaxTextureImageUnits);
    ctx->Const.MaxVertexTextureImageUnits = 0; /* no vertex shader textures */
 
    /* Advertise the full hardware capabilities.  The new memory
@@ -134,8 +142,10 @@ GLboolean brwCreateContext( const __GLcontextModes *mesaVis,
    ctx->Const.Max3DTextureLevels = 9;
    ctx->Const.MaxCubeTextureLevels = 12;
    ctx->Const.MaxTextureRectSize = (1<<11);
-   ctx->Const.MaxTextureUnits = BRW_MAX_TEX_UNIT;
    
+   /* if conformance mode is set, swrast can handle any size AA point */
+   ctx->Const.MaxPointSizeAA = 255.0;
+
 /*    ctx->Const.MaxNativeVertexProgramTemps = 32; */
 
    brw_init_attribs( brw );
@@ -147,11 +157,12 @@ GLboolean brwCreateContext( const __GLcontextModes *mesaVis,
 
    brw->emit_state_always = 0;
 
-   ctx->FragmentProgram._MaintainTexEnvProgram = 1;
+   ctx->VertexProgram._MaintainTnlProgram = GL_TRUE;
+   ctx->FragmentProgram._MaintainTexEnvProgram = GL_TRUE;
+
+   make_empty_list(&brw->query.active_head);
 
    brw_draw_init( brw );
-
-   brw_ProgramCacheInit( ctx );
 
    return GL_TRUE;
 }

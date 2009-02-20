@@ -30,9 +30,9 @@
   */
                
 
-#include "glheader.h"
-#include "macros.h"
-#include "enums.h"
+#include "main/glheader.h"
+#include "main/macros.h"
+#include "main/enums.h"
 #include "brw_context.h"
 #include "brw_wm.h"
 #include "brw_util.h"
@@ -122,10 +122,11 @@ static struct prog_dst_register dst_reg(GLuint file, GLuint idx)
    reg.File = file;
    reg.Index = idx;
    reg.WriteMask = WRITEMASK_XYZW;
+   reg.RelAddr = 0;
    reg.CondMask = 0;
    reg.CondSwizzle = 0;
-   reg.pad = 0;
    reg.CondSrc = 0;
+   reg.pad = 0;
    return reg;
 }
 
@@ -425,10 +426,6 @@ static struct prog_src_register search_or_add_param5(struct brw_wm_compile *c,
    }
 
    idx = _mesa_add_state_reference( paramList, tokens );
-
-   /* Recalculate state dependency: 
-    */
-   c->fp->param_state = paramList->StateFlags;
 
    return src_reg(PROGRAM_STATE_VAR, idx);
 }
@@ -814,62 +811,11 @@ static void precalc_txp( struct brw_wm_compile *c,
 
 
 
-
-
-/***********************************************************************
- * Add instructions to perform fog blending
- */
-
-static void fog_blend( struct brw_wm_compile *c,
-			     struct prog_src_register fog_factor )
-{
-   struct prog_dst_register outcolor = dst_reg(PROGRAM_OUTPUT, FRAG_RESULT_COLR);
-   struct prog_src_register fogcolor = search_or_add_param5( c, STATE_FOG_COLOR, 0,0,0,0 );
-
-   /* color.xyz = LRP fog_factor.xxxx, output_color, fog_color */
-   
-   emit_op(c, 
-	   OPCODE_LRP,
-	   dst_mask(outcolor, WRITEMASK_XYZ),
-	   0, 0, 0,
-	   fog_factor,
-	   src_reg_from_dst(outcolor),
-	   fogcolor);
-}
-
-
-
-/* This one is simple - just take the interpolated fog coordinate and
- * use it as the fog blend factor.
- */
-static void fog_interpolated( struct brw_wm_compile *c )
-{
-   struct prog_src_register fogc = src_reg(PROGRAM_INPUT, FRAG_ATTRIB_FOGC);
-   
-   if (!(c->fp_interp_emitted & (1<<FRAG_ATTRIB_FOGC))) 
-      emit_interp(c, FRAG_ATTRIB_FOGC);
-
-   fog_blend( c, src_swizzle1(fogc, GET_SWZ(fogc.Swizzle,X)));
-}
-
-static void emit_fog( struct brw_wm_compile *c ) 
-{
-   if (!c->fp->program.FogOption)
-      return;
-
-   if (1) 
-      fog_interpolated( c );
-   else {
-      /* TODO: per-pixel fog */
-      assert(0);
-   }
-}
-
 static void emit_fb_write( struct brw_wm_compile *c )
 {
-   struct prog_src_register outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_COLR);
    struct prog_src_register payload_r0_depth = src_reg(PROGRAM_PAYLOAD, PAYLOAD_DEPTH);
    struct prog_src_register outdepth = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_DEPR);
+   struct prog_src_register outcolor;
    GLuint i;
 
    struct prog_instruction *inst, *last_inst;
@@ -893,7 +839,14 @@ static void emit_fb_write( struct brw_wm_compile *c )
 	   }
        }
        last_inst->Sampler |= 1; //eot
-   }else {
+   }
+   else {
+      /* if gl_FragData[0] is written, use it, else use gl_FragColor */
+      if (c->fp->program.Base.OutputsWritten & (1 << FRAG_RESULT_DATA0))
+         outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_DATA0);
+      else 
+         outcolor = src_reg(PROGRAM_OUTPUT, FRAG_RESULT_COLR);
+
        inst = emit_op(c, WM_FB_WRITE, dst_mask(dst_undef(),0),
 	       0, 0, 0, outcolor, payload_r0_depth, outdepth);
        inst->Sampler = 1|(0<<1);
@@ -960,7 +913,7 @@ void brw_wm_pass_fp( struct brw_wm_compile *c )
    GLuint insn;
 
    if (INTEL_DEBUG & DEBUG_WM) {
-      _mesa_printf("\n\n\npre-fp:\n");
+      _mesa_printf("pre-fp:\n");
       _mesa_print_program(&fp->program.Base); 
       _mesa_printf("\n");
    }
@@ -1055,7 +1008,6 @@ void brw_wm_pass_fp( struct brw_wm_compile *c )
          emit_ddy(c, inst);
 	break;
       case OPCODE_END:
-	 emit_fog(c);
 	 emit_fb_write(c);
 	 break;
       case OPCODE_PRINT:
@@ -1068,7 +1020,7 @@ void brw_wm_pass_fp( struct brw_wm_compile *c )
    }
 
    if (INTEL_DEBUG & DEBUG_WM) {
-	   _mesa_printf("\n\n\npass_fp:\n");
+	   _mesa_printf("pass_fp:\n");
 	   print_insns( c->prog_instructions, c->nr_fp_insns );
 	   _mesa_printf("\n");
    }
