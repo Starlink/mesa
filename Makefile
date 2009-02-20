@@ -75,10 +75,15 @@ darwin-fat-32bit \
 darwin-fat-all \
 darwin-static \
 darwin-static-x86ppc \
+dragonfly \
+dragonfly-dri \
+dragonfly-dri-amd64 \
+dragonfly-dri-x86 \
 freebsd \
 freebsd-dri \
 freebsd-dri-amd64 \
 freebsd-dri-x86 \
+freebsd-static \
 hpux10 \
 hpux10-gcc \
 hpux10-static \
@@ -167,10 +172,10 @@ ultrix-gcc:
 
 # Rules for making release tarballs
 
-DIRECTORY = Mesa-7.0.3
-LIB_NAME = MesaLib-7.0.3
-DEMO_NAME = MesaDemos-7.0.3
-GLUT_NAME = MesaGLUT-7.0.3
+DIRECTORY = Mesa-7.0.4
+LIB_NAME = MesaLib-7.0.4
+DEMO_NAME = MesaDemos-7.0.4
+GLUT_NAME = MesaGLUT-7.0.4
 
 MAIN_FILES = \
 	$(DIRECTORY)/Makefile*						\
@@ -328,6 +333,7 @@ SGI_GLU_FILES = \
 	$(DIRECTORY)/src/glu/sgi/Makefile.win				\
 	$(DIRECTORY)/src/glu/sgi/Makefile.DJ				\
 	$(DIRECTORY)/src/glu/sgi/glu.def				\
+	$(DIRECTORY)/src/glu/sgi/glu.exports				\
 	$(DIRECTORY)/src/glu/sgi/dummy.cc				\
 	$(DIRECTORY)/src/glu/sgi/descrip.mms				\
 	$(DIRECTORY)/src/glu/sgi/mesaglu.opt				\

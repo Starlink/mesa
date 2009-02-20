@@ -183,12 +183,8 @@ struct intel_context
 
    GLubyte clear_chan[4];
    GLuint ClearColor;
-   GLuint ClearDepth;
 
-   GLfloat depth_scale;
    GLfloat polygon_offset_scale; /* dependent on depth_scale, bpp */
-   GLuint depth_clear_mask;
-   GLuint stencil_clear_mask;
 
    GLboolean hw_stencil;
    GLboolean hw_stipple;
@@ -268,6 +264,8 @@ void UNLOCK_HARDWARE( struct intel_context *intel );
 
 #define SUBPIXEL_X 0.125
 #define SUBPIXEL_Y 0.125
+
+#define ALIGN(value, alignment)  ((value + alignment - 1) & ~(alignment - 1))
 
 /* ================================================================
  * Color packing:
@@ -387,8 +385,11 @@ extern int INTEL_DEBUG;
 #define PCI_CHIP_I946_GZ		0x2972
 #define PCI_CHIP_I965_GM                0x2A02
 
-#define PCI_CHIP_IGD_GM       0x2A42
+#define PCI_CHIP_GM45_GM                0x2A42
 
+#define PCI_CHIP_IGD_E_G                0x2E02
+#define PCI_CHIP_Q45_G                  0x2E12
+#define PCI_CHIP_G45_G                  0x2E22
 
 /* ================================================================
  * intel_context.c:
